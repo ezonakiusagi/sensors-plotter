@@ -1,0 +1,150 @@
+#!/bin/ksh
+
+##
+## USAGE definition
+##
+# usage: sensors-plotter [options]
+#   -c, --chip=chip	    select sensor chip
+#   -s, --sensor=sensor	    select specific sensor within selected chip
+#   -w, --width=seconds	    the number of seconds of the width of plot
+#   -t, --title=title	    set the title of the plot
+USAGE=$'[-?\n@(#)$Id: 0.1\n]'
+USAGE+="[-author?Art of Server <the.art.of.server@gmail.com>]"
+USAGE+="[-copyright?Copyright (C) 2019 The Art of Server.]"
+USAGE+="[-license?GNU General Public License v3.]"
+USAGE+="[+NAME?sensors-plotter --- plot graphs of sensors data stream in terminal.]"
+USAGE+="[+DESCRIPTION?sensor-plotter is a small script to plot graphs in a terminal "
+USAGE+="using a stream of data points from the sensors command.]"
+USAGE+="[c:chip]:[sensor chip?Select the sensor chip to probe (required).]"
+USAGE+="[s:sensor]:[sensor?Select the sensor to probe (required).]"
+USAGE+="[w:width]:[width?The number of seconds of the width of plot (default=120).]"
+USAGE+="[t:title]:[title?The title of the plot.]"
+USAGE+="[S:stats?turn on statistics at bottom of screen.]"
+
+##
+## configuration settings
+##
+# option flags
+OPT_CHIP=0
+OPT_SENSOR=0
+OPT_WIDTH=0
+OPT_TITLE=0
+OPT_STATS=0
+# variables
+CHIP=
+SENSOR=
+WIDTH=120
+TITLE=
+typeset -f STAT_max=
+typeset -f STAT_min=
+typeset -f STAT_avg=
+typeset -f STAT_last=
+
+DATALOG=./sensors-data.log
+typeset -A UTILS
+UTILS[rm]=$(which rm)
+UTILS[grep]=$(which grep)
+UTILS[awk]=$(which awk)
+UTILS[tail]=$(which tail)
+UTILS[head]=$(which head)
+UTILS[sort]=$(which sort)
+UTILS[mktemp]=$(which mktemp)
+UTILS[sensors]=$(which sensors)
+UTILS[gnuplot]=$(which gnuplot)
+
+##
+## functions
+##
+
+#------------------------------------------------------------------------------
+# description: check availability of external utilities
+# inputs:
+# outputs:
+# exit:
+#------------------------------------------------------------------------------
+function check_utils
+{
+    return 0
+}
+
+#------------------------------------------------------------------------------
+# description: collect sensor data and stream to $_datalog
+# inputs: $1=chip, $2=sensor, $datalog
+# outputs: stream sensor data to $datalog
+# exit: none
+#------------------------------------------------------------------------------
+function collect_sensor_data
+{
+    typeset _chip=$1
+    typeset _sensor=$2
+    typeset _datalog=$3
+    typeset _reading=
+
+    while true
+    do
+        _reading=$(${UTILS[sensors]} -u $_chip \
+	    | ${UTILS[awk]} -v sensor=$_sensor '$1==sensor":" {print $2}')
+        print $_reading >> $_datalog
+        sleep 1
+    done
+}
+
+##
+## main
+##
+
+SELF=$0
+PID=$$
+
+# process command line args
+while getopts "$USAGE" option
+do
+    case $option in
+	c|chip)	    OPT_CHIP=1 && CHIP=$OPTARG	    ;;
+	s|sensor)   OPT_SENSOR=1 && SENSOR=$OPTARG  ;;
+	w|width)    OPT_WIDTH=1 && WIDTH=$OPTARG    ;;
+	t|title)    OPT_TITLE=1 && TITLE=$OPTARG    ;;
+	S|stats)    OPT_STATS=1			    ;;
+    esac
+done
+
+# fork collect_sensor_data() in background
+collect_sensor_data $CHIP $SENSOR $DATALOG &
+COLLECTOR_PID=$!
+trap "kill $COLLECTOR_PID" EXIT
+
+# wait for $DATALOG
+while [[ ! -f $DATALOG ]]
+do
+    sleep 1
+done
+
+while true
+do
+    # get size of terminal
+    read rows cols < <(stty size)
+    # if OPT_STATS=1, reduce rows by 3 for space to print max, min, avg, last.
+    if (( OPT_STATS == 1 )) ; then
+	(( rows -= 3 ))
+    fi
+
+    ${UTILS[tail]} -$WIDTH $DATALOG \
+	| ${UTILS[gnuplot]} -e "set terminal dumb size $cols, $rows; set yrange [0:80]; set title \"$TITLE\"; set nokey; plot '-' with lines"
+
+    # if OPT_STATS=1, print stats at bottom
+    if (( OPT_STATS == 1 )) ; then
+	# get last value
+	STAT_last=$(${UTILS[tail]} -1 $DATALOG)
+	# sort, and get max/min/avg
+	SORTED_DATA=$(${UTILS[mktemp]} /var/tmp/sensors-plotter.XXXXX)
+	${UTILS[sort]} -n $DATALOG > $SORTED_DATA
+	STAT_min=$(${UTILS[head]} -1 $SORTED_DATA)
+	STAT_max=$(${UTILS[tail]} -1 $SORTED_DATA)
+	STAT_avg=$(${UTILS[awk]} '{ total += $1; count++ } END { print total/count }' $SORTED_DATA)
+	printf "\tlast = %f, max = %f, min = %f, avg = %f\n" $STAT_last $STAT_max $STAT_min $STAT_avg
+	${UTILS[rm]} -f $SORTED_DATA
+    fi
+    
+    sleep 1
+done
+
