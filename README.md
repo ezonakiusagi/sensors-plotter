@@ -94,7 +94,8 @@ OPTIONS
   -t, --title=title
                   The title of the plot.
   -S, --stats     turn on statistics at bottom of screen.
-  -C, --continue  do not clear previous data stream and continue (default is to clear old data stream).
+  -C, --continue=file
+                  continue from previous data stream file (default is to start new data stream).
 ```
 
 ### width: 
