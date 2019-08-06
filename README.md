@@ -35,9 +35,48 @@ Core 1:
 ```
 
 In the above, we can see "coretemp-isa-0000" as a chip that has sensors, and there are several sensors listed, for example "temp1_input" is the package temperature sensor. If we want to visualize this sensor, run sensor-plotter with the following options:
-
+```
 $ ./sensor-plotter --chip=coretemp-isa-0000 --sensor=temp1_input
+```
+You should then see a plot of the sensor data in the terminal in ASCII art form. You can pick any "chip" and "sensor" to visualize, it can be a temperature sensor, fan speed sensor, voltage sensor, etc., but only 1 chip and 1 sensor at a time. The output will look like this:
 
-You should then see a plot of the sensor data in the terminal in ASCII art form. You can pick any "chip" and "sensor" to visualize, it can be a temperature sensor, fan speed sensor, voltage sensor, etc., but only 1 chip and 1 sensor at a time.
+```
+     +---------------+---------------+----------------+---------------+---------------+---------------+   
+  70 +-+             +               +                +               +               +             +-+   
+     |                                                                                                |   
+     |                                                                                                |   
+     |                                                                                                |   
+     |                                                                                                |   
+  60 +-+                                                                                    ***     +-+   
+     |                                                                                     *  *       |   
+     |                                                                                    *   *       |   
+     |                                                                                    *   *       |   
+  50 +-+                                                                                  *   *     +-+   
+     |                  *                                                                 *    *      |   
+     |                  *                                                                 *    *      |   
+     |                  *                                                                *     *      |   
+     |                  **                                               * *             *     *      |   
+  40 +-+                **                                               ***             *     **   +-+   
+     ********* *********************************** ***** ******* **** *** ****************       *****|   
+     |        *                 *            *    *     *       * *  *         *       *              |   
+     |                                                                                                |   
+     |                                                                                                |   
+  30 +-+                                                                                            +-+   
+     |                                                                                                |   
+     |                                                                                                |   
+     |                                                                                                |   
+     |                                                                                                |   
+  20 +-+                                                                                            +-+   
+     |                                                                                                |   
+     |                                                                                                |   
+     |                                                                                                |   
+  10 +-+                                                                                            +-+   
+     |                                                                                                |   
+     |                                                                                                |   
+     |                                                                                                |   
+     +               +               +                +               +               +               +   
+   0 +-+-------------+---------------+----------------+---------------+---------------+-------------+-+   
+     0               20              40               60              80             100             120  
+```
 
 # OTHER OPTIONS
