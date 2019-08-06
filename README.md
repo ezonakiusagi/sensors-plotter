@@ -12,7 +12,7 @@ along with other standard Unix utilities like: rm, grep, awk, tail , head, sort,
 
 # HOW TO USE
 pick a sensor you want to visualize from the listing shown by 'sensors -u' command. here's a snippet of such output:
-
+```
 $ sensors -u
 coretemp-isa-0000
 Adapter: ISA adapter
@@ -32,6 +32,7 @@ Core 1:
   temp3_crit: 105.000
   temp3_crit_alarm: 0.000
 (remainder of output cut off)
+```
 
 In the above, we can see "coretemp-isa-0000" as a chip that has sensors, and there are several sensors listed, for example "temp1_input" is the package temperature sensor. If we want to visualize this sensor, run sensor-plotter with the following options:
 
