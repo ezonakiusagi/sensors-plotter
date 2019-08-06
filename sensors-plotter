@@ -9,7 +9,7 @@
 #   -w, --width=seconds	    the number of seconds of the width of plot
 #   -t, --title=title	    set the title of the plot
 #   -S, --stats		    turn on statistics at bottom of screen
-#   -C, --continue          do not clear previous data stream and continue
+#   -C, --continue=file     continue from previous data stream file
 USAGE=$'[-?\n@(#)$Id: 0.1\n]'
 USAGE+="[-author?Art of Server <the.art.of.server@gmail.com>]"
 USAGE+="[-copyright?Copyright (C) 2019 The Art of Server.]"
@@ -22,7 +22,7 @@ USAGE+="[s:sensor]:[sensor?Select the sensor to probe (required).]"
 USAGE+="[w:width]:[width?The number of seconds of the width of plot (default=120).]"
 USAGE+="[t:title]:[title?The title of the plot.]"
 USAGE+="[S:stats?turn on statistics at bottom of screen.]"
-USAGE+="[C:continue?do not clear previous data stream and continue (default is to clear old data stream).]"
+USAGE+="[C:continue]:[file?continue from previous data stream file (default is to start new data stream).]"
 
 ##
 ## configuration settings
@@ -39,13 +39,12 @@ CHIP=
 SENSOR=
 WIDTH=120
 TITLE=
+DATALOG=./sensors-data.log
 typeset -f STAT_max=
 typeset -f STAT_min=
 typeset -f STAT_avg=
 typeset -f STAT_last=
 GNUPLOT_INPUT=
-# path locations
-DATALOG=./sensors-data.log
 # external dependencies
 typeset -A UTILS
 UTILS[rm]=$(which rm 2>/dev/null)
@@ -54,6 +53,7 @@ UTILS[awk]=$(which awk 2>/dev/null)
 UTILS[tail]=$(which tail 2>/dev/null)
 UTILS[head]=$(which head 2>/dev/null)
 UTILS[sort]=$(which sort 2>/dev/null)
+UTILS[wc]=$(which wc 2>/dev/null)
 UTILS[mktemp]=$(which mktemp 2>/dev/null)
 UTILS[sensors]=$(which sensors 2>/dev/null)
 UTILS[gnuplot]=$(which gnuplot 2>/dev/null)
@@ -137,21 +137,26 @@ do
 	w|width)    OPT_WIDTH=1 && WIDTH=$OPTARG    ;;
 	t|title)    OPT_TITLE=1 && TITLE=$OPTARG    ;;
 	S|stats)    OPT_STATS=1			    ;;
-	C|continue) OPT_CONT=1			    ;;
+	C|continue) OPT_CONT=1 && DATALOG=$OPTARG   ;;
     esac
 done
 
 if (( OPT_CONT == 0 )) ; then
-    ${UTILS[rm]} -f $DATALOG
+    DATALOG=$(${UTILS[mktemp]} ./sensor-data.XXXXX)
+fi
+# check DATALOG is writable
+if [[ ! -w $DATALOG ]] ; then
+    print -u2 "Error: cannot write to $DATALOG"
+    exit 1
 fi
 
 # fork collect_sensor_data() in background
 collect_sensor_data $CHIP $SENSOR $DATALOG &
 COLLECTOR_PID=$!
-trap "kill $COLLECTOR_PID" EXIT
+trap "kill $COLLECTOR_PID && print \"\nsensor data=$DATALOG\"" EXIT
 
-# wait for $DATALOG
-while [[ ! -f $DATALOG ]]
+# wait for $DATALOG to have data
+while (( $(${UTILS[wc]} -l <$DATALOG) == 0 ))
 do
     sleep 1
 done
