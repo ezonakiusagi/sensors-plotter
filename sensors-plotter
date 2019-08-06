@@ -8,6 +8,8 @@
 #   -s, --sensor=sensor	    select specific sensor within selected chip
 #   -w, --width=seconds	    the number of seconds of the width of plot
 #   -t, --title=title	    set the title of the plot
+#   -S, --stats		    turn on statistics at bottom of screen
+#   -C, --continue          do not clear previous data stream and continue
 USAGE=$'[-?\n@(#)$Id: 0.1\n]'
 USAGE+="[-author?Art of Server <the.art.of.server@gmail.com>]"
 USAGE+="[-copyright?Copyright (C) 2019 The Art of Server.]"
@@ -20,6 +22,7 @@ USAGE+="[s:sensor]:[sensor?Select the sensor to probe (required).]"
 USAGE+="[w:width]:[width?The number of seconds of the width of plot (default=120).]"
 USAGE+="[t:title]:[title?The title of the plot.]"
 USAGE+="[S:stats?turn on statistics at bottom of screen.]"
+USAGE+="[C:continue?do not clear previous data stream and continue (default is to clear old data stream).]"
 
 ##
 ## configuration settings
@@ -30,6 +33,7 @@ OPT_SENSOR=0
 OPT_WIDTH=0
 OPT_TITLE=0
 OPT_STATS=0
+OPT_CONT=0
 # variables
 CHIP=
 SENSOR=
@@ -39,18 +43,20 @@ typeset -f STAT_max=
 typeset -f STAT_min=
 typeset -f STAT_avg=
 typeset -f STAT_last=
-
+GNUPLOT_INPUT=
+# path locations
 DATALOG=./sensors-data.log
+# external dependencies
 typeset -A UTILS
-UTILS[rm]=$(which rm)
-UTILS[grep]=$(which grep)
-UTILS[awk]=$(which awk)
-UTILS[tail]=$(which tail)
-UTILS[head]=$(which head)
-UTILS[sort]=$(which sort)
-UTILS[mktemp]=$(which mktemp)
-UTILS[sensors]=$(which sensors)
-UTILS[gnuplot]=$(which gnuplot)
+UTILS[rm]=$(which rm 2>/dev/null)
+UTILS[grep]=$(which grep 2>/dev/null)
+UTILS[awk]=$(which awk 2>/dev/null)
+UTILS[tail]=$(which tail 2>/dev/null)
+UTILS[head]=$(which head 2>/dev/null)
+UTILS[sort]=$(which sort 2>/dev/null)
+UTILS[mktemp]=$(which mktemp 2>/dev/null)
+UTILS[sensors]=$(which sensors 2>/dev/null)
+UTILS[gnuplot]=$(which gnuplot 2>/dev/null)
 
 ##
 ## functions
@@ -58,13 +64,36 @@ UTILS[gnuplot]=$(which gnuplot)
 
 #------------------------------------------------------------------------------
 # description: check availability of external utilities
-# inputs:
-# outputs:
-# exit:
+# inputs: (global) UTILS[*]
+# outputs: error messages to stdout
+# exit: 0=success, 1=failed
 #------------------------------------------------------------------------------
 function check_utils
 {
-    return 0
+    typeset key=
+    typeset -i err=0
+
+    for key in ${!UTILS[*]}
+    do
+	# if empty, means not in PATH
+	if [[ -z ${UTILS[$key]} ]] ; then
+	    (( err++ ))
+	    print -u2 "Error: could not find $key in your PATH."
+	    print -u2 "Hint: maybe need to install ${key}?"
+	    continue
+	fi
+
+	# check file exists and executable
+	if [[ ! -f ${UTILS[$key]} ]] ; then
+	    (( err++ ))
+	    print -u2 "Error: could not find file ${UTILS[$key]}."
+	fi 
+	if [[ ! -x ${UTILS[$key]} ]] ; then
+	    (( err++ ))
+	    print -u2 "Error: file ${UTILS[$key]} is not executable."
+	fi 
+    done
+    (( err == 0 )) && return 0 || return 1
 }
 
 #------------------------------------------------------------------------------
@@ -96,6 +125,9 @@ function collect_sensor_data
 SELF=$0
 PID=$$
 
+# check external dependencies
+check_utils || exit 1
+
 # process command line args
 while getopts "$USAGE" option
 do
@@ -105,8 +137,13 @@ do
 	w|width)    OPT_WIDTH=1 && WIDTH=$OPTARG    ;;
 	t|title)    OPT_TITLE=1 && TITLE=$OPTARG    ;;
 	S|stats)    OPT_STATS=1			    ;;
+	C|continue) OPT_CONT=1			    ;;
     esac
 done
+
+if (( OPT_CONT == 0 )) ; then
+    ${UTILS[rm]} -f $DATALOG
+fi
 
 # fork collect_sensor_data() in background
 collect_sensor_data $CHIP $SENSOR $DATALOG &
@@ -127,9 +164,26 @@ do
     if (( OPT_STATS == 1 )) ; then
 	(( rows -= 3 ))
     fi
+    GNUPLOT_INPUT="set terminal dumb size $cols, $rows;"
+
+    # if $STAT_max is not empty, base yrange max on 120% of STAT_max
+    if [[ -n $STAT_max ]] ; then
+	(( yrange_max = STAT_max * 1.20 ))
+	GNUPLOT_INPUT+="set yrange [0:$yrange_max];"
+    else
+	GNUPLOT_INPUT+="set yrange [0:*];"
+    fi
+
+    # if TITLE is not empty, set it
+    if [[ -n $TITLE ]] ; then
+	GNUPLOT_INPUT+="set title \"$TITLE\";"
+    fi
+
+    # wrap up final bits of GNUPLOT_INPUT
+    GNUPLOT_INPUT+="set nokey; plot '-' with lines"
 
     ${UTILS[tail]} -$WIDTH $DATALOG \
-	| ${UTILS[gnuplot]} -e "set terminal dumb size $cols, $rows; set yrange [0:80]; set title \"$TITLE\"; set nokey; plot '-' with lines"
+	| ${UTILS[gnuplot]} -e "$GNUPLOT_INPUT"
 
     # if OPT_STATS=1, print stats at bottom
     if (( OPT_STATS == 1 )) ; then
