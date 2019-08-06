@@ -80,3 +80,31 @@ You should then see a plot of the sensor data in the terminal in ASCII art form.
 ```
 
 # OTHER OPTIONS
+There are a number of other options, which can be seen by running with the --help option:
+```
+$ ./sensors-plotter --help
+Usage: ./sensors-plotter [ options ]
+OPTIONS
+  -c, --chip=sensor chip
+                  Select the sensor chip to probe (required).
+  -s, --sensor=sensor
+                  Select the sensor to probe (required).
+  -w, --width=width
+                  The number of seconds of the width of plot (default=120).
+  -t, --title=title
+                  The title of the plot.
+  -S, --stats     turn on statistics at bottom of screen.
+  -C, --continue  do not clear previous data stream and continue (default is to clear old data stream).
+```
+
+### width: 
+by default, the time window for visualization is 120 seconds of data. if there is less than 120 seconds of data available, it will visualize as many data points as is available. if there are more than 120 seconds of data, it will visualize the last 120 seconds. This time window can be adjusted with the --width= option by providing the desired time window when launching the program.
+
+### title:
+if you are running more than 1 instance of this script in multiple terminal windows and you want to distinguish them from each other, you can add a "title" to each visualization plot with the --title= option. the title will then be shown at the top of each plot.
+
+### statistics:
+if you would like to see some basic statistics of the plot, use the --stats option to show the "last", "maximum", "minimum", and "average" value at the bottom of the plot.
+
+### continue:
+by default, every run of this script will start a new data stream and collect data from the selected sensor. if instead, you would like to simply continue from a previous data stream and just add newly collected data, use the --continue=file option, where "file" is the path to the previous data stream file. when you terminate the program with ctrl-c, it will print the path to the data stream file used. you can use this file path on the next run with --continue to continue your visualization without starting over.
